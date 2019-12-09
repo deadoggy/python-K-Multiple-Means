@@ -1,0 +1,4 @@
+{
+    "vim.autoSwitchInputMethod.enable": true,
+    "vim.camelCaseMotion.enable": true
+}
