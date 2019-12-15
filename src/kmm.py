@@ -225,4 +225,4 @@ class KMultipleMeans:
                 break
         
         # step 3, assign labels
-        # TODO:
+        # 
