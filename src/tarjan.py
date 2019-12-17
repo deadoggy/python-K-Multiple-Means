@@ -102,12 +102,7 @@ class TarjanSCC:
         return label
 
 
-if __name__=='__main__':
 
-    mat = np.array([[0,0,0, 0],[0,0,1,0],[0,0,0,1],[0,1,0,0]])
-    tc = TarjanSCC(0.)
-    label = tc.fit(mat)
-    print(label.tolist())
 
 
 

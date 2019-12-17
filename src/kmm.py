@@ -1,7 +1,6 @@
 import numpy as np
 from tarjan import TarjanSCC
 
-
 class KMultipleMeans:
     '''
         ref: 
@@ -11,7 +10,7 @@ class KMultipleMeans:
     '''
 
     def __init__(self, proto_sz, nn_k, 
-                    metric=lambda x,y,ix,iy:np.sum((x-y)**2)):
+                    metric=lambda x,y,ix,iy:np.sqrt(np.sum((x-y)**2))):
         '''
             init function of KMultipleMeans
 
@@ -182,7 +181,7 @@ class KMultipleMeans:
                 # step 2.2.1 fix S, update F
                 D = self._degree_matrix(self._square_affinity_matrix())
                 Ds = D**(-1/2)
-                Ds[Ds==np.inf] = 0.
+                Ds[Ds==np.inf] = np.exp(100)
                 Du_s = Ds[0              :self.X.shape[0], 0              :self.X.shape[0]]
                 Dv_s = Ds[self.X.shape[0]:               , self.X.shape[0]:               ]
                 _S = Du_s.dot(self.S).dot(Dv_s)
@@ -200,8 +199,8 @@ class KMultipleMeans:
                     # item 2
                     i = idx_v1
                     j = idx_v2 + self.X.shape[0]
-                    f_i = self.F[i] / np.sqrt(D[i][i])
-                    f_j = self.F[j] / np.sqrt(D[j][j])
+                    f_i = (self.F[i] / np.sqrt(D[i][i])) if D[i][j]!=0. else np.exp(100)
+                    f_j = self.F[j] / np.sqrt(D[j][j]) if D[j][i]!=0. else np.exp(100)
                     item_2 = np.sum((f_i-f_j)**2)
 
                     return item_1 + lamb * item_2
