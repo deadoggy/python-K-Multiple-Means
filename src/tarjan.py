@@ -10,7 +10,7 @@ class TarjanSCC:
             https://www.geeksforgeeks.org/tarjan-algorithm-find-strongly-connected-components
     '''
 
-    def __init__(self, affinity_threshold):
+    def __init__(self, affinity_threshold=0.):
         '''
             init function of TarjanSCC
 

@@ -1,5 +1,5 @@
 import numpy as np
-
+from tarjan import TarjanSCC
 
 
 class KMultipleMeans:
@@ -155,7 +155,13 @@ class KMultipleMeans:
                     int, size of clusters
             
             return:
-                self.labels
+                (data_labels, proto_labels, self.S)
+                @data_labels:
+                    np.ndarray, shape=(N_datapoints,), labels of data points
+                @proto_labels:
+                    np.ndarray, shape=(N_prototypes, ), labels of prototypes
+                @self.S:
+                    np.ndarray, shape=(N_datapoints, N_prototypes), affinity matrix btw data points and prototypes
         '''
 
         self.X = X
@@ -225,4 +231,11 @@ class KMultipleMeans:
                 break
         
         # step 3, assign labels
-        # 
+        tc =  TarjanSCC()
+        affinity_matrix = self._square_affinity_matrix()
+        labels = tc.fit(affinity_matrix)
+        
+        data_labels = labels[:self.S.shape[0]]
+        proto_labels = labels[self.S.shape[0]:]
+
+        return (data_labels, proto_labels, self.S)
