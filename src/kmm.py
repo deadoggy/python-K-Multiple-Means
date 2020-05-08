@@ -9,231 +9,71 @@ class KMultipleMeans:
             959-967. 10.1145/3292500.3330846. 
     '''
 
-    def __init__(self, proto_sz, nn_k, 
-                    metric=lambda x,y,ix,iy:np.sqrt(np.sum((x-y)**2))):
+    def __init__(self, k, n_proto, nn_k, r='auto', l=1., 
+                    metric=lambda x,y:np.sqrt(np.sum((x-y)**2))):
         '''
             init function of KMultipleMeans
 
             argv:
-                @proto_sz: 
+                @k:
+                    int, number of clusters
+                @n_proto: 
                     int, size of prototypes
                 @nn_k:
-                    int, number of nearest neighbors
+                    int, number of nearest prototypes which are connnected to each data point
+                @r: 
+                    float/string, the parameter of L2 regularization, if can be a float or 'auto'.
+                @l: 
+                    float, the parameter of eigen values item
                 @metric: 
                     callable, function to calculate distance btw data points,
-                    arguments are: v1, v2, idx_v1, idx_v2
         '''
-
-        self.proto_sz = proto_sz
+        self.k = k
+        self.n_proto = n_proto
         self.nn_k = nn_k
+        self.r = r
+        self.l = l
         self.metric = metric
-        self.labels = None
-        self.A = None
-        self.X = None
-        self.S = None
-        self.F = None
-        self.r = None
 
-    def _sample_prototypes(self):
-        '''
-            sample <self.proto_sz> prototypes from self.X
-        '''
-        prototypes = np.zeros((self.proto_sz, self.X.shape[1]))
-        prototypes[0:self.proto_sz] = self.X[0:self.proto_sz]
 
-        for i in range(self.proto_sz, self.X.shape[0]):
-            idx = np.random.randint(0, self.proto_sz)
-            if idx < self.proto_sz:
-                prototypes[idx] = self.X[i]
-        
-        return prototypes
-
-    def _sparsity_parameter(self, sorted_distance):
+    def fit(self, X):
         '''
-            calculate the sparsity regularization based on a sorted distance list
+            cluster the data points to k clusters
 
             argv:
-                @sorted_distance:
-                    np.ndarray, shape=(self.proto_sz,)
-        '''
-        item_1 = sorted_distance[self.nn_k]
-        item_2 = np.sum(sorted_distance[0:self.nn_k])
-        return (self.nn_k * item_1 - item_2) / 2.
-
-    def _sparsity_item(self, metric):
-        '''
-            calculate matrix S and sparsity parameter
-
-            argv:
-                @metric:
-                    callable, distance calculating function
-            return:
-                (S, r)
-                S: np.ndarray, shape=(self.X.shape[0], self.proto_sz)
-                r: float
-        '''
-
-        S = np.zeros((self.X.shape[0], self.proto_sz))
-        r = 0.
-
-        for i in range(0, S.shape[0]):
-            x = self.X[i]
-
-            # calcualte distance btw this point to all prototypes and sort these dists
-            # from small to large
-            dists = np.array([ metric(x, v, i, iv) for iv, v in enumerate(self.A)])
-            sorted_dists_idx = np.argsort(dists)
-
-            #calculate S_i
-            d_ka1 = dists[sorted_dists_idx[self.nn_k]]
-            deno = self.nn_k * d_ka1 - np.sum(dists[sorted_dists_idx[0:self.nn_k],])
-            for j in range(0, self.nn_k):
-                S[i][sorted_dists_idx[j]] = (d_ka1-dists[sorted_dists_idx[j]]) / deno
-
-            #calculate r_i
-            r += self._sparsity_parameter(dists[sorted_dists_idx, ])
-        
-        return (S, r/self.X.shape[0])
-
-    def _degree_matrix(self, mat):
-        '''
-            calculate degree matrix of @mat
-
-            argv:
-                @mat: 
-                    2D np.ndarray
-            
-            return:
-                np.ndarray, degree matrix of mat
-        '''
-
-        degree_mat = np.zeros(mat.shape)
-        for i in range(degree_mat.shape[0]):
-            degree_mat[i][i] = np.sum(mat[i])
-        return degree_mat
-
-    def _square_affinity_matrix(self):
-        '''
-            calculate P matrix in paper
+                @X:
+                    np.ndarray, shape=(N_datapoints, N_features), data points
 
             return:
-                np.ndarray, shape=(N_datapoints+self.proto_sz, N_datapoints+self.protosz)
-        '''
-        n = self.S.shape[0]
-        m = self.S.shape[1]
-
-        P = np.zeros((n+m, n+m))
-        P[0:n, n: ] = self.S
-        P[n: , 0:n] = self.S.T
-
-        return P
-
-    def _laplacian(self):
-        '''
-            calculate normalized laplacian matrix of P
-
-            return:
-                np.array, shape=(self.X.shape[0]+self.proto_sz, self.X.shape[0]+self.proto_sz)
-        '''
-        P = self._square_affinity_matrix()
-        D = self._degree_matrix(P)
-        D_s = D**(-1/2)
-        D_s[D_s==np.inf] = 0.
-
-        return np.identity(P.shape[0]) - D_s.dot(P).dot(D_s) 
-
-    def fit(self, X, k):
-        '''
-            run the KMultipleMeans clustersing algorithm
-
-            argv:
-                @X: 
-                    np.ndarray, shape=(N_datapoints, N_features)
-                @k: 
-                    int, size of clusters
-            
-            return:
-                (data_labels, proto_labels, self.S)
-                @data_labels:
-                    np.ndarray, shape=(N_datapoints,), labels of data points
-                @proto_labels:
-                    np.ndarray, shape=(N_prototypes, ), labels of prototypes
-                @self.S:
-                    np.ndarray, shape=(N_datapoints, N_prototypes), affinity matrix btw data points and prototypes
+                (data_labels, prototype_labels), 
+                    where shape(data_labels)=(N_datapoints,), shape(prototype_labels)=(n_proto,)
         '''
 
-        self.X = X
-        self.labels = np.zeros((X.shape[0]))        
-        # step 1: Initialize multiple-means
-        self.A = self._sample_prototypes()
-
-        #step 2: loop for updating S and prototypes
-        lamb = np.inf
+        # Step.1: pick @n_proto samples randomly as the prototypes
+        A = X[np.random.choice(X.shape[0], self.n_proto, replace=False),]
+        S = np.zeros((X.shape[0], A.shape[0]))
+    
+        # Step.2 Optimization
         while True:
+        
+            # Step.2.1 solve the assignment of neighboring prototypes in problem(4)
+            sum_deno = 0.
+            for i in range(X.shape[0]):
+                dist_to_proto = np.array([self.metric(X[i], A[j]) for j in range(A.shape[0])])
+                sorted_dist_idx = np.argsort(dist_to_proto)
+                denominator = self.n_proto * dist_to_proto[sorted_dist_idx[self.n_proto]]\
+                    - np.sum( dist_to_proto[ sorted_dist_idx[0:self.n_proto], ] )
+                sum_deno += denominator
 
-            #step 2.1 calculate S and r by the optimal solution to problem (4) in paper
-            self.S, self.r = self._sparsity_item(self.metric) 
-            lamb = self.r
-
-            #step 2.2 fix A, update S & F
-            while True:
-                # step 2.2.1 fix S, update F
-                D = self._degree_matrix(self._square_affinity_matrix())
-                Ds = D**(-1/2)
-                Ds[Ds==np.inf] = np.exp(100)
-                Du_s = Ds[0              :self.X.shape[0], 0              :self.X.shape[0]]
-                Dv_s = Ds[self.X.shape[0]:               , self.X.shape[0]:               ]
-                _S = Du_s.dot(self.S).dot(Dv_s)
-                u, sval, vh = np.linalg.svd(_S)
-                
-                U = (np.sqrt(2)/2.) * u[:, :k] # U.shape=(N, k)
-                V = (np.sqrt(2)/2.) * vh[:k, :].T # V.shape=(M, k)
-                self.F = np.concatenate((U,V), axis=0)
-
-                # step 2.2.2 fix F, update S
-                def updateS_metric(v1, v2, idx_v1, idx_v2):
-                    # item 1
-                    item_1 = self.metric(v1, v2, idx_v1, idx_v2)
-
-                    # item 2
-                    i = idx_v1
-                    j = idx_v2 + self.X.shape[0]
-                    f_i = (self.F[i] / np.sqrt(D[i][i])) if D[i][j]!=0. else np.exp(100)
-                    f_j = self.F[j] / np.sqrt(D[j][j]) if D[j][i]!=0. else np.exp(100)
-                    item_2 = np.sum((f_i-f_j)**2)
-
-                    return item_1 + lamb * item_2
-                
-                self.S, self.r = self._sparsity_item(updateS_metric)
-                
-                # check whether to stop the iteration
-                L = self._laplacian()
-                eigval, eigvec = np.linalg.eig(L)
-                zero_eig_cnt = eigval.shape[0]-np.count_nonzero(eigval)
-                if k == zero_eig_cnt:
-                    break
-                elif k>zero_eig_cnt:
-                    lamb *= 2
-                else:
-                    lamb /= 2
+                for j in range(self.n_proto):
+                    S[i][sorted_dist_idx[j]] = (
+                            dist_to_proto[sorted_dist_idx[self.n_proto]] - dist_to_proto[sorted_dist_idx[j]]
+                        ) / denominator
+            if self.r == 'auto':
+                r = sum_deno / (2*X.shape[0])
+            else:
+                r = self.r
             
-            #step 2.3 fix S & F, update A
-            is_break = True
-            for i in range(self.A.shape[0]):
-                new_Ai = (self.S[:, i].T.dot(self.X)) / (np.sum(self.S[:,i]))
-                if is_break and new_Ai != self.A[i]:
-                    is_break = False
-                self.A[i] = new_Ai
-
-            if is_break:
-                break
-        
-        # step 3, assign labels
-        tc =  TarjanSCC()
-        affinity_matrix = self._square_affinity_matrix()
-        labels = tc.fit(affinity_matrix)
-        
-        data_labels = labels[:self.S.shape[0]]
-        proto_labels = labels[self.S.shape[0]:]
-
-        return (data_labels, proto_labels, self.S)
+            # Step.2.2 Fix A, update S,F
+            while True:
+                
