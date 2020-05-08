@@ -19,7 +19,7 @@ data = np.array(data)
 # run clustering
 
 kmm = KMultipleMeans(proto_sz=13, nn_k=3)
-data_label, proto_label, S = kmm.fit(data, 2)
+data_label, proto_label, S, A = kmm.fit(data, 2)
 
 print('s')
 
