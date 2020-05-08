@@ -10,7 +10,7 @@ class KMultipleMeans:
     '''
 
     def __init__(self, k, n_proto, nn_k, r='auto', l=1., 
-                    metric=lambda x,y:np.sqrt(np.sum((x-y)**2))):
+                    metric=lambda x,y:np.sum((x-y)**2)):
         '''
             init function of KMultipleMeans
 
@@ -35,6 +35,29 @@ class KMultipleMeans:
         self.l = l
         self.metric = metric
 
+    def _solve_Si(self, dist_to_proto):
+        '''
+            solve the problem(4) and the problem(20) in the paper
+
+            argv:
+                @dist_to_proto: np.ndarray, shape=(self.n_proto), the distances between a data point
+                                and all prototypes
+            
+            return:
+                (Si, denominator), S is a np.ndarray with shape=(self.n_proto,), denominator is a float 
+                which is used to calcualte the r parameter if needed 
+        '''
+        Si = np.zeros_like(dist_to_proto)
+        sorted_dist_idx = np.argsort(dist_to_proto)
+        denominator = self.n_proto * dist_to_proto[sorted_dist_idx[self.n_proto]]\
+            - np.sum( dist_to_proto[ sorted_dist_idx[0:self.n_proto], ] )
+
+        for j in range(self.n_proto):
+            Si[sorted_dist_idx[j]] = (
+                    dist_to_proto[sorted_dist_idx[self.n_proto]] - dist_to_proto[sorted_dist_idx[j]]
+                ) / denominator
+
+        return (Si, denominator)
 
     def fit(self, X):
         '''
@@ -60,15 +83,8 @@ class KMultipleMeans:
             sum_deno = 0.
             for i in range(X.shape[0]):
                 dist_to_proto = np.array([self.metric(X[i], A[j]) for j in range(A.shape[0])])
-                sorted_dist_idx = np.argsort(dist_to_proto)
-                denominator = self.n_proto * dist_to_proto[sorted_dist_idx[self.n_proto]]\
-                    - np.sum( dist_to_proto[ sorted_dist_idx[0:self.n_proto], ] )
+                S[i], denominator = self._solve_Si(dist_to_proto)
                 sum_deno += denominator
-
-                for j in range(self.n_proto):
-                    S[i][sorted_dist_idx[j]] = (
-                            dist_to_proto[sorted_dist_idx[self.n_proto]] - dist_to_proto[sorted_dist_idx[j]]
-                        ) / denominator
             if self.r == 'auto':
                 r = sum_deno / (2*X.shape[0])
             else:
@@ -76,4 +92,19 @@ class KMultipleMeans:
             
             # Step.2.2 Fix A, update S,F
             while True:
-                
+                # Step.2.2.1 Fix S, update F
+                P = np.zeros((X.shape[0]+self.n_proto, X.shape[0]+self.n_proto))
+                P[0:X.shape[0], X.shape[0]:] = S
+                P[X.shape[0]:, 0:X.shape[0]] = S.T
+                D = np.zeros_like(P)
+                for i in range(P.shape[0]):
+                    D[i][i] = 1/ np.sqrt(np.sum(P[i,:]))
+                Du = D[0:X.shape[0], 0:X.shape[0]]
+                Dv = D[X.shape[0]:, X.shape[0]:]
+                S_h = Du.dot(S).dot(Dv)
+                U,M,VT = np.linalg.svd(S_h) # According to the doc, columns of U and rows of VT are singular vectors
+                F = (np.sqrt(2)/2)*np.concatenate((U[:,0:self.k], VT.T[:,-self.k:]), axis=0)
+
+                # Step.2.2.2 Fix F, update S
+
+
