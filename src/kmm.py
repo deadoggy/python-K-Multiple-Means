@@ -81,18 +81,17 @@ class KMultipleMeans:
 
             # calcualte distance btw this point to all prototypes and sort these dists
             # from small to large
-            sorted_dists = np.sort(np.array([ metric(x, v, i, iv) for iv, v in enumerate(self.A)]))
+            dists = np.array([ metric(x, v, i, iv) for iv, v in enumerate(self.A)])
+            sorted_dists_idx = np.argsort(dists)
 
             #calculate S_i
-            d_ka1 = sorted_dists[self.nn_k]
-            deno = self.nn_k * d_ka1 - np.sum(sorted_dists[0:self.nn_k])
-            S[i] = np.array([
-                (d_ka1 - sorted_dists[i])/deno if i<self.nn_k else 0
-                for i in range(self.proto_sz) 
-            ])
+            d_ka1 = dists[sorted_dists_idx[self.nn_k]]
+            deno = self.nn_k * d_ka1 - np.sum(dists[sorted_dists_idx[0:self.nn_k],])
+            for j in range(0, self.nn_k):
+                S[i][sorted_dists_idx[j]] = (d_ka1-dists[sorted_dists_idx[j]]) / deno
 
             #calculate r_i
-            r += self._sparsity_parameter(sorted_dists)
+            r += self._sparsity_parameter(dists[sorted_dists_idx, ])
         
         return (S, r/self.X.shape[0])
 

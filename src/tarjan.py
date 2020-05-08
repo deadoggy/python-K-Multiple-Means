@@ -100,18 +100,3 @@ class TarjanSCC:
                 _scc(v)
         
         return label
-
-
-
-
-
-
-
-
-
-
-
-
-            
-    
-    
