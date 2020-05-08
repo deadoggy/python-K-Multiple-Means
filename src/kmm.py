@@ -9,7 +9,7 @@ class KMultipleMeans:
             959-967. 10.1145/3292500.3330846. 
     '''
 
-    def __init__(self, k, n_proto, nn_k, tol=1e-7, l=1., 
+    def __init__(self, k, n_proto, nn_k, tol=1e-2, l=1000., 
                     metric=lambda x,y:np.sum((x-y)**2)):
         '''
             init function of KMultipleMeans
@@ -49,12 +49,12 @@ class KMultipleMeans:
         '''
         Si = np.zeros_like(dist_to_proto)
         sorted_dist_idx = np.argsort(dist_to_proto)
-        denominator = self.n_proto * dist_to_proto[sorted_dist_idx[self.n_proto]]\
-            - np.sum( dist_to_proto[ sorted_dist_idx[0:self.n_proto], ] )
+        denominator = self.nn_k * dist_to_proto[sorted_dist_idx[self.nn_k]]\
+            - np.sum( dist_to_proto[ sorted_dist_idx[0:self.nn_k], ] )
 
-        for j in range(self.n_proto):
+        for j in range(self.nn_k):
             Si[sorted_dist_idx[j]] = (
-                    dist_to_proto[sorted_dist_idx[self.n_proto]] - dist_to_proto[sorted_dist_idx[j]]
+                    dist_to_proto[sorted_dist_idx[self.nn_k]] - dist_to_proto[sorted_dist_idx[j]]
                 ) / denominator
 
         return Si 
@@ -97,6 +97,7 @@ class KMultipleMeans:
                 D = np.zeros_like(P)
                 for i in range(P.shape[0]):
                     D[i][i] = 1/ np.sqrt(np.sum(P[i,:]))
+                D[D==np.inf] = 0.
                 Du = D[0:X.shape[0], 0:X.shape[0]]
                 Dv = D[X.shape[0]:, X.shape[0]:]
                 Sh = Du.dot(S).dot(Dv)
@@ -112,9 +113,15 @@ class KMultipleMeans:
 
                 # Step.2.2.3 judge whether to stop the iterations
                 L = np.identity(X.shape[0]+self.n_proto) - D.dot(P).dot(D)
-                sum_eig = np.sum(np.sort(np.linalg.eigvals(L))[0:self.k])
-                if sum_eig < self.tol:
+                sorted_eigvals = np.sort(np.linalg.eigvals(L))
+                zero_eig_cnt = len(sorted_eigvals[sorted_eigvals<self.tol])
+                if zero_eig_cnt == self.k:
                     break 
+                if zero_eig_cnt < self.k:
+                    self.l *= 2
+                elif zero_eig_cnt > self.k:
+                    self.l /= 2
+
             
             # Step.2.3 Fix S,F, update A
             old_A = A.copy()
@@ -124,9 +131,10 @@ class KMultipleMeans:
             # Step.2.4 judge whether to stop the iteration
             if np.sum(np.abs(old_A-A))<self.tol:
                 break
+            
         
         # Step.3 Use tarjan algorithm to solve the SCC problem
-        tarjan = TarjanSCC(1e-5)
+        tarjan = TarjanSCC(self.tol)
         P = np.zeros((X.shape[0]+self.n_proto, X.shape[0]+self.n_proto))
         P[0:X.shape[0], X.shape[0]:] = S
         P[X.shape[0]:, 0:X.shape[0]] = S.T
