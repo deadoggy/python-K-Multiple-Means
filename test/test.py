@@ -2,6 +2,7 @@ import sys
 sys.path.append(sys.path[0] + '/../src/')
 from kmm import KMultipleMeans
 import numpy as np
+import math
 
 # load test dataset
 
@@ -18,7 +19,7 @@ data = np.array(data)
 
 # run clustering
 
-kmm = KMultipleMeans(k=3,n_proto=13, nn_k=3)
+kmm = KMultipleMeans(k=2,n_proto=math.floor(np.sqrt(2*373)), l='auto', nn_k=3)
 data_label, proto_label, S, A = kmm.fit(data)
 
 print('s')

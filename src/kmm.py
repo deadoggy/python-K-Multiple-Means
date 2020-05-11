@@ -9,7 +9,7 @@ class KMultipleMeans:
             959-967. 10.1145/3292500.3330846. 
     '''
 
-    def __init__(self, k, n_proto, nn_k, tol=1e-2, l=1000., 
+    def __init__(self, k, n_proto, nn_k, tol=1e-1, l=1000., max_itr_1=15, max_itr_2=15, 
                     metric=lambda x,y:np.sum((x-y)**2)):
         '''
             init function of KMultipleMeans
@@ -24,7 +24,13 @@ class KMultipleMeans:
                 @tol: 
                     float, if abs of difference between two data is less than @tol, they are treated as the same.
                 @l: 
-                    float, the parameter of eigen values item
+                    float/'auto', the parameter of eigen values item; if 'auto', then the l will be r first, then
+                    in each iteration, if the number of zero-eigvals larger than k, divided by 2; if less than k, 
+                    multiplied by 2.
+                @max_itr_1:
+                    int, the maximum times of iterations of the outer loops
+                @max_itr_2:
+                    int, the maximum tiems of iterations of the inner loops
                 @metric: 
                     callable, function to calculate distance btw data points,
         '''
@@ -33,6 +39,8 @@ class KMultipleMeans:
         self.nn_k = nn_k
         self.tol = tol
         self.l = l
+        self.max_itr_1 = max_itr_1
+        self.max_itr_2 = max_itr_2
         self.metric = metric
 
     def _solve_Si(self, dist_to_proto):
@@ -57,7 +65,7 @@ class KMultipleMeans:
                     dist_to_proto[sorted_dist_idx[self.nn_k]] - dist_to_proto[sorted_dist_idx[j]]
                 ) / denominator
 
-        return Si 
+        return Si, denominator
 
     def fit(self, X):
         '''
@@ -76,7 +84,8 @@ class KMultipleMeans:
         S = np.zeros((X.shape[0], A.shape[0]))
     
         # Step.2 Optimization
-        while True:
+        itr_1 = 0
+        while itr_1<self.max_itr_1:
             
             # Step.2.0 calculate distances between data points and prototypes, which is used in both Step.2.1 and Step.2.2
             dist_to_proto = np.zeros((X.shape[0], self.n_proto))
@@ -84,11 +93,19 @@ class KMultipleMeans:
                 dist_to_proto[i] = np.array([self.metric(X[i], A[j]) for j in range(A.shape[0])])
     
             # Step.2.1 solve the assignment of neighboring prototypes in problem(4)
+            sum_deno = 0.
             for i in range(X.shape[0]):
-                S[i]= self._solve_Si(dist_to_proto[i])
+                S[i], deno= self._solve_Si(dist_to_proto[i])
+                sum_deno += deno
+            
+            if self.l == 'auto':
+                l = sum_deno/(2.*X.shape[0])
+            else:
+                l = self.l
 
             # Step.2.2 Fix A, update S,F
-            while True:
+            itr_2 = 0
+            while itr_2<self.max_itr_2:
 
                 # Step.2.2.1 Fix S, update F
                 P = np.zeros((X.shape[0]+self.n_proto, X.shape[0]+self.n_proto))
@@ -109,18 +126,21 @@ class KMultipleMeans:
                     # calculate vij in problem(17)
                     n = X.shape[0]
                     v = np.array([ np.sum((F[i]*D[i][i]-F[n+j]*D[n+j][n+j])**2) for j in range(self.n_proto)])
-                    S[i] = self._solve_Si(dist_to_proto[i]+self.l*v)
+                    S[i], deno = self._solve_Si(dist_to_proto[i]+l*v)
 
                 # Step.2.2.3 judge whether to stop the iterations
                 L = np.identity(X.shape[0]+self.n_proto) - D.dot(P).dot(D)
                 sorted_eigvals = np.sort(np.linalg.eigvals(L))
                 zero_eig_cnt = len(sorted_eigvals[sorted_eigvals<self.tol])
+                itr_2 += 1
                 if zero_eig_cnt == self.k:
-                    break 
-                if zero_eig_cnt < self.k:
-                    self.l *= 2
-                elif zero_eig_cnt > self.k:
-                    self.l /= 2
+                    break
+                else:
+                    if self.l=='auto':
+                        if zero_eig_cnt > self.k:
+                            l /= 2
+                        else:
+                            l *= 2
 
             
             # Step.2.3 Fix S,F, update A
@@ -128,6 +148,7 @@ class KMultipleMeans:
             for i in range(self.n_proto):
                 A[i] = X.T.dot(S[:,i])/np.sum(S[:,i])
 
+            itr_1 += 1
             # Step.2.4 judge whether to stop the iteration
             if np.sum(np.abs(old_A-A))<self.tol:
                 break
@@ -139,6 +160,11 @@ class KMultipleMeans:
         P[0:X.shape[0], X.shape[0]:] = S
         P[X.shape[0]:, 0:X.shape[0]] = S.T
         all_labels = tarjan.fit(P)
+
+        # save S, A, l
+        self.S = S
+        self.A = A
+        self.l = l
 
         return (all_labels[0:X.shape[0]], all_labels[X.shape[0]:], S, A)
 
