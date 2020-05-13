@@ -99,12 +99,11 @@ class CateTree:
         return sum_similarity
 
 
-def convertor(uid, bus_cate_dict, kwargs):
+def convertor(paths, kwargs):
     '''
         convert a user's category data to data a vector
 
-        @uid: str, user id
-        @bus_cate_dict: dict, a dict whose keys are business ids and values are category paths
+        @paths: list of category paths
         @kwargs: a dict of other parameter, {'pivots':[], 'sigma': float/list}.
 
         #return: feature vector
@@ -117,23 +116,18 @@ def convertor(uid, bus_cate_dict, kwargs):
         sigma = 0.
 
     feature_arr = [0.0 for i in range(len(pivots))]
-    path_sets = []
-    for key in bus_cate_dict.keys():
-        for p in bus_cate_dict[key]:
-            path_sets.append(p)
     
     for d in range(len(pivots)):
         t = pivots[d]
         if t.__class__ != CateTree:
             raise Exception('the %d-th pivot not a CateTree' % d)
-        feature_arr[d] = t.similarity(path_sets)
+        feature_arr[d] = t.similarity(paths)
         if sigma != 0.:
             if type(sigma) == list:
                 s = sigma[d]  #different sigma value for each dimension 
             else:
                 s = sigma
-            u = t.similarity(path_sets)
-            feature_arr[d] = np.exp(-np.power(u, 2)/(2.0*np.power(s, 2)))
+            feature_arr[d] = np.exp(-np.power(feature_arr[d], 2)/(2.0*np.power(s, 2)))
     return list(feature_arr)
 
 
