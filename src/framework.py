@@ -57,9 +57,11 @@ def preprocess_data():
         for spid in user_staypointsid[uid]:
             try:
                 locations.append(location_cache[spid])
-                addresses.append([staypoints[spid]['address'] for spid in user_staypointsid[uid]])
+                addresses.append(staypoints[spid]['address'] )
             except Exception as e:
                 print('%s not in business ids'%spid)
+        if 0==len(locations) or 0==len(addresses):
+            continue
         user_locations.append(locations)
         user_addresses.append(addresses)
     with open(user_locations_fn, 'w') as locout:
@@ -79,9 +81,6 @@ else:
 
 user_locations = np.array(user_locations)
 user_addresses = np.array(user_addresses)
-log('Step.0.2 MinMax Scaler')
-minmax = MinMaxScaler(feature_range=(0, 100))
-user_locations = minmax.fit_transform(user_locations)
 
 
 #   Step.1 Convert address to vectors using CateTree
@@ -108,7 +107,10 @@ log('Step.3 For each patterns, employ weighted kmm clustering')
 for pattern_idx in range(K):
     log('Step.3 itr:%d'%pattern_idx)
     indices = np.where(labels==pattern_idx)
-    locations, counts = np.unique(user_locations[indices], axis=0, return_counts=True)
+    flat_locations = np.concatenate(user_locations[indices], axis=0)
+    minmax = MinMaxScaler(feature_range=(0,1000))
+    flat_locations = minmax.fit_transform(flat_locations)
+    locations, counts = np.unique(flat_locations, axis=0, return_counts=True)
     W = counts/np.sum(counts)
     A_ls = []
     S_ls = []
