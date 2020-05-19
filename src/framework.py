@@ -56,16 +56,16 @@ def preprocess_data():
         addresses = []
         for spid in user_staypointsid[uid]:
             try:
-                locations.append({'id': spid, 'loc':location_cache[spid]})
+                locations.append(location_cache[spid])
                 addresses.append([staypoints[spid]['address'] for spid in user_staypointsid[uid]])
             except Exception as e:
                 print('%s not in business ids'%spid)
         user_locations.append(locations)
         user_addresses.append(addresses)
-        with open(user_locations_fn, 'w') as locout:
-            json.dump(user_locations, locout)
-        with open(user_addresses_fn, 'w') as addout:
-            json.dump(user_addresses, addout)
+    with open(user_locations_fn, 'w') as locout:
+        json.dump(user_locations, locout)
+    with open(user_addresses_fn, 'w') as addout:
+        json.dump(user_addresses, addout)
     return user_locations, user_addresses
 
 
