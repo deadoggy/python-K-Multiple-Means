@@ -20,7 +20,7 @@ user_fn = 'data/lasvegas_ub.json'
 user_locations_fn = 'data/user_locations.json'
 user_addresses_fn = 'data/user_addresses.json'
 SIGMA_CATETREE = 1e-3
-PREPROCESS = True
+PREPROCESS = False
 
 def log(msg):
     ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -96,7 +96,7 @@ pivots = list(pivots.values())
 user_vecs = np.array([convertor(addr, {'pivots': pivots, 'sigma': SIGMA_CATETREE}) for addr in user_addresses])
 
 #   Step.2 clustering user_vecs to find similar pattern
-log('Step.2 clustering user_vecs to find similar pattern')
+log('Step.2 Clustering user_vecs to find similar pattern')
 K = 5
 km = KMeans(n_clusters=K)
 labels = km.fit_predict(user_vecs)
@@ -123,14 +123,15 @@ for pattern_idx in range(K):
         log('   Step.3.1 k:%d'%k)
         n_proto = math.floor(np.sqrt(k*locations.shape[0]))
         nn_k = math.ceil(user_vecs.shape[0]/locations.shape[0])
-
         wkmm = WeightedKMultipleMeans(k, n_proto=n_proto, nn_k=nn_k, l='auto')
         loc_labels, proto_labels, S, A = wkmm.fit(locations, W)
+        log('   Step.3.1 Wkmm done')
         lb_ls.append(loc_labels.tolist())
         proto_lb_ls.append(proto_labels.tolist())
         A_ls.append(A.tolist())
         S_ls.append(S.tolist())
         sc_ls.append(silhouette_score(locations, loc_labels))
+
     patterns.append({
         'user_idx': indices.tolist(),
         'locations': locations.tolist,

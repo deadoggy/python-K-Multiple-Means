@@ -1,4 +1,5 @@
 {
     "vim.autoSwitchInputMethod.enable": true,
-    "vim.camelCaseMotion.enable": true
+    "vim.camelCaseMotion.enable": true,
+    "python.pythonPath": "/home/yinjia/anaconda3/bin/python"
 }
